@@ -1,5 +1,6 @@
-
+numpy
 
 # Dev
 pip-tools
 pre-commit
+pytest
