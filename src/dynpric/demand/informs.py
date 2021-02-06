@@ -5,6 +5,7 @@ from typing import Dict
 from typing import NamedTuple
 from typing import Protocol
 from typing import Sequence
+from typing import List
 
 import numpy as np
 from numpy.random import exponential
@@ -53,7 +54,7 @@ class RandomFirm:
         self.max = max
         self._p = self._set_price()
 
-    def observe_market(self, demand: int, disclosed_prices: Sequence[Price]) -> Price:
+    def observe_market(self, demand: int, disclosed_prices: Sequence[Price]):
         # print(self.name, "sees demands of", demand)
         assert self.price == disclosed_prices[self]
         self._set_price()
@@ -65,6 +66,9 @@ class RandomFirm:
     def price(self):
         return self._price
 
+    def __repr__(self):
+        return f"Firm {self.name}"
+
 
 class InformsDemand:
     def __init__(self) -> None:
@@ -73,14 +77,8 @@ class InformsDemand:
         self.λ = round(uniform(50, 150))
         self.θ_sho, self.θ_loy = sample_shares(2)
 
-        # self.θ_sci: float = 0.25
-        # self.v_phd: float = 0.7
-        # self.v_prof: float = 0.3
-
         self.β_sho = round(uniform(5, 15))
         self.β_loy = uniform(1.5, 2) * self.β_sho
-
-        # Scientists
 
     def _sample_customers(self):
         n = poisson(self.λ)
@@ -100,7 +98,7 @@ class InformsDemand:
 
         return self.shoppers, self.loyals
 
-    def demand(self, firms: Sequence[Firm]):
+    def allocate(self, firms: Sequence[Firm]):
         self._sample_customers()
         loyals = assign_randomly(self.loyals, firms)
         return loyals
@@ -124,16 +122,21 @@ if __name__ == '__main__':
     firms = (RandomFirm('a', 5, 10), RandomFirm('b', 13, 17), RandomFirm('c', 1, 4))
     market = InformsDemand()
 
-    revenue_stream: Dict[Firm, Sequence[float]] = collections.defaultdict(list)
 
-    for _ in range(1000):
-        allocation = market.demand(firms)
+    def simulate_market_interactions(firms, market, n_periods=500):
+        revenue_stream: Dict[Firm, List[float]] = collections.defaultdict(list)
+        for _ in range(n_periods):
+            allocation = market.allocate(firms)
 
-        for firm, customers in allocation.items():
-            disclosed_prices: Dict[Firm, Price] = {firm: firm.price for firm in firms}
-            demand = compute_demand(firm, customers)
-            revenue_stream[firm].append(firm.price * demand)
-            firm.observe_market(demand, disclosed_prices)
+            for firm, customers in allocation.items():
+                disclosed_prices: Dict[Firm, Price] = {firm: firm.price for firm in firms}
+                demand = compute_demand(firm, customers)
+                revenue_stream[firm].append(firm.price * demand)
+                firm.observe_market(demand, disclosed_prices)
+
+        return revenue_stream
+
+    revenue_stream = simulate_market_interactions(firms, market)
 
     for firm, revenue in sorted(revenue_stream.items(), key=lambda x: x[0].name):
         print(firm.name, sum(revenue))
