@@ -4,10 +4,10 @@ import random
 from typing import Callable
 from typing import Dict
 from typing import List
+from typing import Mapping
 from typing import NamedTuple
 from typing import Protocol
 from typing import Sequence
-from typing import Mapping
 from typing import Tuple
 
 import numpy as np
@@ -51,17 +51,41 @@ class Period(NamedTuple):
 
 
 class Demand(Protocol):
-
-    def allocate(self, prices_set: PricesSet) ->  Dict[Firm, int]:
+    def allocate(self, prices_set: PricesSet) -> Dict[Firm, int]:
         ...
 
 
 History = List[Period]
 
 Allocation = Dict[Firm, List[Customer]]
-def assign_randomly(
-    customers: Sequence[Customer], firms: Sequence[Firm]
-) -> Allocation:
+
+
+class PoissonDemand:
+    """
+    Poisson demand for a single firm.
+    """
+
+    def __init__(self):
+        ...
+
+    def allocate(self, prices_set: PricesSet) -> Dict[Firm, int]:
+        ((firm, price),) = prices_set.items()
+
+        if price == 29.9:
+            q = np.random.poisson(50)
+        elif price == 34.9:
+            q = np.random.poisson(45)
+        elif price == 39.9:
+            q = np.random.poisson(40)
+        elif price == 44.9:
+            q = np.random.poisson(30)
+        else:
+            raise ValueError('Price cannot me that')
+
+        return {firm: q}
+
+
+def assign_randomly(customers: Sequence[Customer], firms: Sequence[Firm]) -> Allocation:
     allocation: Dict[Firm, List[Customer]] = {firm: [] for firm in firms}
     for c in customers:
         allocation[random.choice(firms)].append(c)
@@ -109,7 +133,6 @@ class InformsDemand:
 
 
 class RandomFirm:
-
     def __init__(self, name: str, min: int, max: int):
         self.name = name
         self.min = min
@@ -140,7 +163,9 @@ def train_linear_regression(
     return model
 
 
-def predict_quantity(model: sklearn.linear_model.LinearRegression, prices: List[int]) -> List[float]:
+def predict_quantity(
+    model: sklearn.linear_model.LinearRegression, prices: List[int]
+) -> List[float]:
     price_array = np.array(prices).reshape(-1, 1)
     quantity_array = model.predict(price_array)
     return list(quantity_array)
@@ -197,7 +222,7 @@ class OLSFirm:
         return prices[idx_max]
 
     def _disrupt_competitors(self) -> float:
-        return 0.
+        return 0.0
 
     def observe_market(self, history: History) -> None:
         self.prices = [prices[self] for prices, _ in history]
@@ -222,7 +247,9 @@ class GreedyFirm:
         self.name = name
         self._price = random.uniform(0, 100)
 
-    def _set_prices(self, all_prices: List[Price], last_period_prices: List[Price]) -> Price:
+    def _set_prices(
+        self, all_prices: List[Price], last_period_prices: List[Price]
+    ) -> Price:
 
         min_price = min(last_period_prices) if last_period_prices else 0
         lower_10 = np.percentile(all_prices, 10) if all_prices else 0
@@ -247,7 +274,8 @@ class GreedyFirm:
     def __repr__(self) -> str:
         return f'GreedyFirm(name={self.name})'
 
-class InventoryBasedFirm:
+
+class Firm:
     """
     Implements the evolutionary algorithm of Ramezani, Bosman & Poutré -
     Adaptive Strategies for Dynamic Pricing Agents
@@ -255,13 +283,14 @@ class InventoryBasedFirm:
 
     def __init__(self, name):
         self.name = name
-    
+
     @property
     def price(self) -> float:
         ...
 
     def observe_market(self, history: History) -> None:
         ...
+
 
 def simulate_market(n_periods: int, firms: List[Firm], demand: Demand) -> History:
 
