@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 from typing import Callable
 from typing import List
 from typing import Protocol
@@ -12,6 +13,7 @@ from dynpric import RandomFirm
 from dynpric.priors import Belief
 from dynpric.priors import BetaPrior
 from dynpric.priors import GammaPrior
+from dynpric.priors import Prior
 from scipy.optimize import linprog
 from scipy.optimize.optimize import OptimizeResult
 
@@ -25,7 +27,7 @@ def find_optimal_price(prices, demand, c) -> OptimizeResult:
     # 1. Demand is smaller equal than available inventory
     c1 = [demand, c]
 
-    # Sum of probabilities smaller equal one
+    # Sum of probabilities must be <= 1
     c2 = [(1, 1, 1, 1), 1]
 
     # 3. Probability of picking a price must be or equal to greater than zero
@@ -51,31 +53,47 @@ def find_optimal_price(prices, demand, c) -> OptimizeResult:
     return opt
 
 
-Strategy = Callable[[Belief], float]
+# How to select the value of a prior
+SamplingStrategy = Callable[[Belief], float]
 
 
-def thompson(b: Belief) -> float:
-    return b.prior.sample()  # type: ignore
+def thompson(prior: Prior) -> float:
+    return prior.sample()  # type: ignore
 
 
-def greedy(b: Belief) -> float:
-    return b.prior.expected_value  # type: ignore
+def greedy(prior: Prior) -> float:
+    return prior.expected_value  # type: ignore
 
 
-def estimate_demand(strategy: Strategy, beliefs: List[Belief]) -> List[int]:
+@functools.singledispatch
+def sample_demand(param: Prior, strategy: SamplingStrategy) -> float:
+    raise NotImplementedError
+
+@sample_demand.register(BetaPrior)
+def _(belief, strategy):
+    return strategy(belief)
+
+@sample_demand.register(GammaPrior)
+def _(belief, strategy):
+    return np.random.poisson(strategy(belief))
+
+def sample_price(probs, prices) -> float:
     """
-    For each price level return an estimated quantity
+    The optimization result is a distribution over the possible prices.
+    Using such optimal distribution, sample a price.
     """
-    parameters = [strategy(belief) for belief in beliefs]
-    belief_type = type(beliefs[0].prior)
-    if belief_type == BetaPrior:
-        return parameters
-    elif belief_type == GammaPrior:
-        demand = [np.random.poisson(p) for p in parameters]
-        # demand = [np.random.poisson(10) for p in parameters]
-        return demand
-    else:
-        raise NotImplementedError
+    assert len(probs) == len(prices)
+
+    # Ensure probs are always positive
+    rounded_probs = np.round(probs, decimals=3)
+
+    if any(rounded_probs < 0):
+        raise ValueError(rounded_probs)
+
+    # Normalize probs to add up to one
+    normalized_probs = np.divide(rounded_probs, np.sum(rounded_probs))
+    price_set = np.random.choice(prices, size=1, p=normalized_probs)
+    return float(price_set)
 
 
 class TSFixedFirm:
@@ -83,7 +101,7 @@ class TSFixedFirm:
         self,
         name: str,
         beliefs: List[Belief],
-        strategy: Strategy,
+        strategy: SamplingStrategy,
         inventory: int,
         n_periods: int,
     ) -> None:
@@ -95,27 +113,12 @@ class TSFixedFirm:
 
     @property
     def price(self) -> float:
-        demand = estimate_demand(self.strategy, self.beliefs)
+        demand = [sample_demand(belief.prior, self.strategy) for belief in self.beliefs]
         prices = [belief.price for belief in self.beliefs]
 
         # Given estimated demands for each price level and the inventory
         # constraint, optimize for best price to set
         optimization_result = find_optimal_price(prices, demand, self.c)
-
-        def sample_price(probs, prices) -> float:
-            assert len(probs) == len(prices)
-
-            # Ensure probs are always positive
-            rounded_probs = np.round(probs, decimals=3)
-            if any(p < 0 for p in rounded_probs):
-                raise ValueError(rounded_probs)
-
-            # Normalize probs to add up to one
-            normalized_probs = np.divide(rounded_probs, np.sum(rounded_probs))
-            # normalized_probs = [p / np.sum(rounded_probs) for p in rounded_probs]
-            sampled_price = np.random.choice(prices, size=1, p=normalized_probs)
-            return float(sampled_price)
-
         chosen_price = sample_price(optimization_result.x, prices)
         return float(chosen_price)
 
