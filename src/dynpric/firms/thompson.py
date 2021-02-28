@@ -4,6 +4,7 @@ import functools
 from typing import Callable
 from typing import List
 from typing import Protocol
+from typing import Tuple
 
 import numpy as np
 from dynpric import GreedyFirm
@@ -16,6 +17,24 @@ from dynpric.priors import GammaPrior
 from dynpric.priors import Prior
 from scipy.optimize import linprog
 from scipy.optimize.optimize import OptimizeResult
+
+
+def constraint_price_prob_is_positive(n_prices: int) -> Tuple[Tuple[Tuple[int], int]]:
+
+    """
+    Example
+    -------
+    For four possible price, generate the following constraint matrix:
+
+       (((-1, 0, 0, 0), 0),
+        ((0, -1, 0, 0), 0),
+        ((0, 0, -1, 0), 0),
+        ((0, 0, 0, -1), 0))
+    """
+    return tuple( 
+            tuple([tuple(-1 if j == i else 0 for j in range(n_prices)), 0])
+            for i in range(n_prices)
+            )
 
 
 def find_optimal_price(prices, demand, c) -> OptimizeResult:
@@ -31,12 +50,7 @@ def find_optimal_price(prices, demand, c) -> OptimizeResult:
     c2 = [(1, 1, 1, 1), 1]
 
     # 3. Probability of picking a price must be or equal to greater than zero
-    c3 = [
-        [(-1, 0, 0, 0), 0],
-        [(0, -1, 0, 0), 0],
-        [(0, 0, -1, 0), 0],
-        [(0, 0, 0, -1), 0],
-    ]
+    c3 = constraint_price_prob_is_positive(len(prices))
 
     constraints = [c1, c2, *c3]
 
@@ -69,13 +83,16 @@ def greedy(prior: Prior) -> float:
 def sample_demand(param: Prior, strategy: SamplingStrategy) -> float:
     raise NotImplementedError
 
+
 @sample_demand.register(BetaPrior)
 def _(belief, strategy):
     return strategy(belief)
 
+
 @sample_demand.register(GammaPrior)
 def _(belief, strategy):
     return np.random.poisson(strategy(belief))
+
 
 def sample_price(probs, prices) -> float:
     """
@@ -131,4 +148,4 @@ class TSFixedFirm:
         belief.prior.update(demand)
 
     def __repr__(self):
-        return f"{type(self).__name__}(name={self.name!r})"
+        return f'{type(self).__name__}(name={self.name!r})'
