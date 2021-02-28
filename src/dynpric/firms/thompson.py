@@ -39,6 +39,8 @@ def constraint_price_prob_is_positive(n_prices: int) -> Tuple[Tuple[Tuple[int], 
 
 def find_optimal_price(prices, demand, c) -> OptimizeResult:
     assert len(prices) == len(demand)
+    n_prices = len(prices)
+
     # The reason for the minus sign is that scipy only does minimizations
     objective = [-(p * d) for p, d in zip(prices, demand)]
 
@@ -47,7 +49,7 @@ def find_optimal_price(prices, demand, c) -> OptimizeResult:
     c1 = [demand, c]
 
     # Sum of probabilities must be <= 1
-    c2 = [(1, 1, 1, 1), 1]
+    c2 = [tuple(1 for _ in range(n_prices)), 1]
 
     # 3. Probability of picking a price must be or equal to greater than zero
     c3 = constraint_price_prob_is_positive(len(prices))
