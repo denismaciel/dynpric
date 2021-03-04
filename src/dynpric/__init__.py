@@ -71,17 +71,9 @@ class PoissonDemand:
     def allocate(self, prices_set: PricesSet) -> Dict[Firm, int]:
         ((firm, price),) = prices_set.items()
 
-        if price == 29.9:
-            q = np.random.poisson(50)
-        elif price == 34.9:
-            q = np.random.poisson(45)
-        elif price == 39.9:
-            q = np.random.poisson(40)
-        elif price == 44.9:
-            q = np.random.poisson(30)
-        else:
-            raise ValueError('Price cannot me that')
-
+        def λ(p):
+            return max(100 - 2*p, 0)
+        q = np.random.poisson(λ(price))
         return {firm: q}
 
 
@@ -235,7 +227,7 @@ class OLSFirm:
         return self._price
 
     def __repr__(self) -> str:
-        return f'OLSFirm(name={self.name})'
+        return f'{type(self).__name__}({self.name})'
 
 
 class GreedyFirm:
@@ -253,10 +245,7 @@ class GreedyFirm:
 
         min_price = min(last_period_prices) if last_period_prices else 0
         lower_10 = np.percentile(all_prices, 10) if all_prices else 0
-
         price = max(lower_10, 5) if min_price < lower_10 else min_price
-
-        print(self, lower_10, price)
         return price
 
     def observe_market(self, history: History) -> None:
@@ -272,7 +261,7 @@ class GreedyFirm:
         return self._price
 
     def __repr__(self) -> str:
-        return f'GreedyFirm(name={self.name})'
+        return f'{type(self).__name__}({self.name})'
 
 
 class Firm:
