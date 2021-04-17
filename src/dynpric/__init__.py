@@ -1,15 +1,11 @@
 from __future__ import annotations
 
 import random
-from typing import Callable
-from typing import Dict
-from typing import List
+from typing import Collection
 from typing import Mapping
 from typing import NamedTuple
 from typing import Protocol
-from typing import Collection
 from typing import Sequence
-from typing import Tuple
 
 import numpy as np
 import sklearn.linear_model
@@ -25,11 +21,14 @@ Customer = float
 
 class Firm(Protocol):
     name: str
+
     @property
     def price(self) -> float:
         ...
+
     def observe_market(self, history: History) -> None:
         ...
+
 
 DemandRealized = Mapping[Firm, Quantity]
 PricesSet = Mapping[Firm, Price]
@@ -45,17 +44,17 @@ class Demand(Protocol):
         ...
 
 
-def sample_shares(n: int) -> List[float]:
-    samples: List[float] = [uniform() for _ in range(n)]
+def sample_shares(n: int) -> list[float]:
+    samples: list[float] = [uniform() for _ in range(n)]
     total = sum(samples)
     shares = [x / total for x in samples]
     assert round(sum(shares), 5) == 1, sum(shares)
     return shares
 
 
-History = List[Period]
+History = list[Period]
 
-Allocation = Dict[Firm, List[Customer]]
+Allocation = dict[Firm, list[Customer]]
 
 
 class PoissonDemand:
@@ -65,18 +64,22 @@ class PoissonDemand:
 
     def __init__(self) -> None:
         ...
+
     @staticmethod
     def allocate(prices_set: PricesSet) -> dict[Firm, int]:
         ((firm, price),) = prices_set.items()
 
         def λ(p: float) -> float:
-            return max(100 - 2*p, 0)
+            return max(100 - 2 * p, 0)
+
         q: int = np.random.poisson(λ(price))
         return {firm: q}
 
 
-def assign_randomly(customers: Collection[Customer], firms: Sequence[Firm]) -> Allocation:
-    allocation: Dict[Firm, list[Customer]] = {firm: [] for firm in firms}
+def assign_randomly(
+    customers: Collection[Customer], firms: Sequence[Firm]
+) -> Allocation:
+    allocation: dict[Firm, list[Customer]] = {firm: [] for firm in firms}
     for c in customers:
         selected = random.choice(firms)
         allocation[selected].append(c)
@@ -93,7 +96,7 @@ class InformsDemand:
         self.β_sho: int = round(uniform(5, 15))
         self.β_loy: int = round(uniform(1.5, 2) * self.β_sho)
 
-    def _sample_customers(self) -> Tuple[np.ndarray, ...]:
+    def _sample_customers(self) -> tuple[np.ndarray, ...]:
         n = poisson(self.λ)
         n_sho, n_loy, = multinomial(
             n,
@@ -111,7 +114,7 @@ class InformsDemand:
 
         return self.shoppers, self.loyals
 
-    def allocate(self, prices_set: PricesSet) -> Dict[Firm, int]:
+    def allocate(self, prices_set: PricesSet) -> dict[Firm, int]:
         self._sample_customers()
 
         firms = list(prices_set.keys())
@@ -147,7 +150,7 @@ class RandomFirm:
 
 
 def train_linear_regression(
-    prices: List[float], quantities: List[float]
+    prices: list[float], quantities: list[float]
 ) -> sklearn.linear_model.LinearRegression:
     model = sklearn.linear_model.LinearRegression()
     model.fit(np.array(prices).reshape(-1, 1), quantities)
@@ -155,8 +158,8 @@ def train_linear_regression(
 
 
 def predict_quantity(
-    model: sklearn.linear_model.LinearRegression, prices: List[int]
-) -> List[float]:
+    model: sklearn.linear_model.LinearRegression, prices: list[int]
+) -> list[float]:
     price_array = np.array(prices).reshape(-1, 1)
     quantity_array = model.predict(price_array)
     return list(quantity_array)
@@ -240,9 +243,7 @@ class GreedyFirm:
         self._price = random.uniform(0, 100)
 
     @staticmethod
-    def _set_prices(
-        all_prices: List[Price], last_period_prices: List[Price]
-    ) -> Price:
+    def _set_prices(all_prices: list[Price], last_period_prices: list[Price]) -> Price:
 
         min_price = min(last_period_prices) if last_period_prices else 0
         lower_10 = np.percentile(all_prices, 10) if all_prices else 0
@@ -265,7 +266,7 @@ class GreedyFirm:
         return f'{type(self).__name__}({self.name})'
 
 
-def simulate_market(n_periods: int, firms: List[Firm], demand: Demand) -> History:
+def simulate_market(n_periods: int, firms: list[Firm], demand: Demand) -> History:
 
     history: History = []
     for _ in range(n_periods):
