@@ -14,6 +14,10 @@ from numpy.random import multinomial
 from numpy.random import poisson
 from numpy.random import uniform
 
+# =====================================
+# ---       Type Definitions        ---
+# =====================================
+
 Price = float
 Quantity = float
 Customer = float
@@ -44,6 +48,14 @@ class Demand(Protocol):
         ...
 
 
+History = list[Period]
+Allocation = dict[Firm, list[Customer]]
+
+# =====================================
+# ---        Utility Functions      ---
+# =====================================
+
+
 def sample_shares(n: int) -> list[float]:
     samples: list[float] = [uniform() for _ in range(n)]
     total = sum(samples)
@@ -52,9 +64,14 @@ def sample_shares(n: int) -> list[float]:
     return shares
 
 
-History = list[Period]
-
-Allocation = dict[Firm, list[Customer]]
+def assign_randomly(
+    customers: Collection[Customer], firms: Sequence[Firm]
+) -> Allocation:
+    allocation: dict[Firm, list[Customer]] = {firm: [] for firm in firms}
+    for c in customers:
+        selected = random.choice(firms)
+        allocation[selected].append(c)
+    return allocation
 
 
 class PoissonDemand:
@@ -76,14 +93,9 @@ class PoissonDemand:
         return {firm: q}
 
 
-def assign_randomly(
-    customers: Collection[Customer], firms: Sequence[Firm]
-) -> Allocation:
-    allocation: dict[Firm, list[Customer]] = {firm: [] for firm in firms}
-    for c in customers:
-        selected = random.choice(firms)
-        allocation[selected].append(c)
-    return allocation
+# =====================================
+# ---           Demands             ---
+# =====================================
 
 
 class InformsDemand:
@@ -126,6 +138,9 @@ class InformsDemand:
         }
 
 
+# =====================================
+# ---             Firms             ---
+# =====================================
 class RandomFirm:
     def __init__(self, name: str, min: int, max: int):
         self.name = name
@@ -266,6 +281,9 @@ class GreedyFirm:
         return f'{type(self).__name__}({self.name})'
 
 
+# =====================================
+# ---            Market             ---
+# =====================================
 def simulate_market(n_periods: int, firms: list[Firm], demand: Demand) -> History:
 
     history: History = []
