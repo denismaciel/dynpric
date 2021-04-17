@@ -1,12 +1,10 @@
+# type: ignore
 import multiprocessing
 import os
 import time
 from functools import partial
 from itertools import product
 from typing import Callable
-from typing import Dict
-from typing import List
-from typing import Tuple
 
 import pandas as pd
 from dynpric.market import Market
@@ -26,9 +24,9 @@ def run_trial(
     s,
     T,
     reporting_frequency,
-    initializer: Callable[[], Tuple[Market, Seller]],
-    state_recorder: Callable[[int, Market, Seller, Price, Quantity], Dict],
-) -> Dict:
+    initializer: Callable[[], tuple[Market, Seller]],
+    state_recorder: Callable[[int, Market, Seller, Price, Quantity], dict],
+) -> dict:
     market, seller = initializer()
     periods = [run_period(t, market, seller, state_recorder) for t in range(T)]
     if s % reporting_frequency == 0:
@@ -37,9 +35,9 @@ def run_trial(
 
 
 def trial_factory(
-    initializer: Callable[[], Tuple[Market, Seller]],
-    state_recorder: Callable[[int, Market, Seller, Price, Quantity], Dict],
-) -> Callable[[int, int], Dict]:
+    initializer: Callable[[], tuple[Market, Seller]],
+    state_recorder: Callable[[int, Market, Seller, Price, Quantity], dict],
+) -> Callable[[int, int], dict]:
     return partial(run_trial, initializer=initializer, state_recorder=state_recorder)
 
 
@@ -62,11 +60,11 @@ def simulate(S: int, T: int, trial_runner: Callable, execution_mode='parallel'):
         result = [trial_runner(s, T, REPORTING_FREQUENCY) for s in range(S)]
 
     end = time.perf_counter()
-    print('Simulation completed in {} seconds'.format(end - start))
+    print(f'Simulation completed in {end - start} seconds')
     return result
 
 
-def flatten_results(simulation: List[Dict]) -> pd.DataFrame:
+def flatten_results(simulation: list[dict]) -> pd.DataFrame:
     """
     Creates a dataframe out of the results of a simulation.
 

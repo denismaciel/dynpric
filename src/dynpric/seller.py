@@ -1,5 +1,4 @@
 from abc import ABC
-from typing import List
 
 from dynpric.priors import Prior
 
@@ -7,7 +6,7 @@ from dynpric.priors import Prior
 class Seller(ABC):
     def __init__(
         self,
-        beliefs: List[Prior],
+        beliefs: list[Prior],
     ) -> None:
         self.beliefs = beliefs
 

@@ -1,5 +1,4 @@
 import abc
-from typing import Dict
 from typing import NamedTuple
 
 import numpy as np
@@ -15,7 +14,7 @@ class Prior(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def params(self) -> Dict[str, float]:
+    def params(self) -> dict[str, float]:
         ...
 
     @property
@@ -24,7 +23,7 @@ class Prior(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def sample(self, n: int) -> float:
+    def sample(self) -> float:
         """
         Samples n values from distribution
         """
@@ -42,7 +41,7 @@ class BetaPrior(Prior):
         self.β = β
 
     @property
-    def params(self) -> Dict[str, float]:
+    def params(self) -> dict[str, float]:
         return {'α': self.α, 'β': self.β}
 
     @property
@@ -65,7 +64,7 @@ class BetaPrior(Prior):
 
 
 class GammaPrior(Prior):
-    def __init__(self, α, β):
+    def __init__(self, α: int, β: int) -> None:
         self.α = α
         self.β = β
 
@@ -88,7 +87,8 @@ class GammaPrior(Prior):
         self.α += result
         self.β += 1
 
-    def params(self):
+    @property
+    def params(self) -> dict[str, float]:
         return {'α': self.α, 'β': self.β}
 
     def __repr__(self) -> str:
