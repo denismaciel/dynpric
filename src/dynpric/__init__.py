@@ -7,6 +7,7 @@ from typing import List
 from typing import Mapping
 from typing import NamedTuple
 from typing import Protocol
+from typing import Collection
 from typing import Sequence
 from typing import Tuple
 
@@ -24,25 +25,14 @@ Customer = float
 
 class Firm(Protocol):
     name: str
-
     @property
     def price(self) -> float:
         ...
-
     def observe_market(self, history: History) -> None:
         ...
 
-
 DemandRealized = Mapping[Firm, Quantity]
 PricesSet = Mapping[Firm, Price]
-
-
-def sample_shares(n: int) -> List[float]:
-    samples: List[float] = [uniform() for _ in range(n)]
-    total = sum(samples)
-    shares = [x / total for x in samples]
-    assert round(sum(shares), 5) == 1, sum(shares)
-    return shares
 
 
 class Period(NamedTuple):
@@ -51,8 +41,16 @@ class Period(NamedTuple):
 
 
 class Demand(Protocol):
-    def allocate(self, prices_set: PricesSet) -> Dict[Firm, int]:
+    def allocate(self, prices_set: PricesSet) -> dict[Firm, int]:
         ...
+
+
+def sample_shares(n: int) -> List[float]:
+    samples: List[float] = [uniform() for _ in range(n)]
+    total = sum(samples)
+    shares = [x / total for x in samples]
+    assert round(sum(shares), 5) == 1, sum(shares)
+    return shares
 
 
 History = List[Period]
@@ -65,22 +63,23 @@ class PoissonDemand:
     Poisson demand for a single firm.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         ...
-
-    def allocate(self, prices_set: PricesSet) -> Dict[Firm, int]:
+    @staticmethod
+    def allocate(prices_set: PricesSet) -> dict[Firm, int]:
         ((firm, price),) = prices_set.items()
 
-        def λ(p):
+        def λ(p: float) -> float:
             return max(100 - 2*p, 0)
-        q = np.random.poisson(λ(price))
+        q: int = np.random.poisson(λ(price))
         return {firm: q}
 
 
-def assign_randomly(customers: Sequence[Customer], firms: Sequence[Firm]) -> Allocation:
-    allocation: Dict[Firm, List[Customer]] = {firm: [] for firm in firms}
+def assign_randomly(customers: Collection[Customer], firms: Sequence[Firm]) -> Allocation:
+    allocation: Dict[Firm, list[Customer]] = {firm: [] for firm in firms}
     for c in customers:
-        allocation[random.choice(firms)].append(c)
+        selected = random.choice(firms)
+        allocation[selected].append(c)
     return allocation
 
 
@@ -200,7 +199,8 @@ class OLSFirm:
             else:
                 return self._exploit()
 
-    def _explore(self) -> Price:
+    @staticmethod
+    def _explore() -> Price:
         return random.uniform(0, 100)
 
     def _exploit(self) -> Price:
@@ -239,8 +239,9 @@ class GreedyFirm:
         self.name = name
         self._price = random.uniform(0, 100)
 
+    @staticmethod
     def _set_prices(
-        self, all_prices: List[Price], last_period_prices: List[Price]
+        all_prices: List[Price], last_period_prices: List[Price]
     ) -> Price:
 
         min_price = min(last_period_prices) if last_period_prices else 0
@@ -264,27 +265,10 @@ class GreedyFirm:
         return f'{type(self).__name__}({self.name})'
 
 
-class Firm:
-    """
-    Implements the evolutionary algorithm of Ramezani, Bosman & Poutré -
-    Adaptive Strategies for Dynamic Pricing Agents
-    """
-
-    def __init__(self, name):
-        self.name = name
-
-    @property
-    def price(self) -> float:
-        ...
-
-    def observe_market(self, history: History) -> None:
-        ...
-
-
 def simulate_market(n_periods: int, firms: List[Firm], demand: Demand) -> History:
 
     history: History = []
-    for i in range(n_periods):
+    for _ in range(n_periods):
         prices_set: PricesSet = {firm: firm.price for firm in firms}
         realized_demand: DemandRealized = demand.allocate(prices_set)
 
