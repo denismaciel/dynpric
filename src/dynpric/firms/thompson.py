@@ -2,15 +2,10 @@ from __future__ import annotations
 
 import functools
 from typing import Callable
-from typing import List
-from typing import Protocol
-from typing import Tuple
+from typing import Sequence
 
 import numpy as np
-from dynpric import GreedyFirm
 from dynpric import History
-from dynpric import OLSFirm
-from dynpric import RandomFirm
 from dynpric.priors import Belief
 from dynpric.priors import BetaPrior
 from dynpric.priors import GammaPrior
@@ -19,25 +14,38 @@ from scipy.optimize import linprog
 from scipy.optimize.optimize import OptimizeResult
 
 
-def constraint_price_prob_is_positive(n_prices: int) -> Tuple[Tuple[Tuple[int], int]]:
+LeftHandSide = Sequence[int]
+Inequality = tuple[LeftHandSide, int]
+
+
+def constraint_price_prob_is_positive(n_prices: int) -> Sequence[Inequality]:
 
     """
     Example
     -------
-    For four possible price, generate the following constraint matrix:
+    For four possible price, results in the following constraint matrix:
 
-       (((-1, 0, 0, 0), 0),
-        ((0, -1, 0, 0), 0),
-        ((0, 0, -1, 0), 0),
-        ((0, 0, 0, -1), 0))
+       [
+            ((-1, 0, 0, 0), 0),
+            ((0, -1, 0, 0), 0),
+            ((0, 0, -1, 0), 0),
+            ((0, 0, 0, -1), 0),
+       ]
     """
-    return tuple( 
-            tuple([tuple(-1 if j == i else 0 for j in range(n_prices)), 0])
-            for i in range(n_prices)
-            )
+    range_prices = tuple(range(n_prices))
+
+    def _left_side(j: int) -> LeftHandSide:
+        return tuple([-1 * int(j == i) for i in range_prices])
+
+    def _line(j: int) -> Inequality:
+        return (_left_side(j), 0)
+
+    return [_line(j) for j in range_prices]
 
 
-def find_optimal_price(prices, demand, c) -> OptimizeResult:
+def find_optimal_price(
+    prices: list[float], demand: list[int], c: float
+) -> OptimizeResult:
     assert len(prices) == len(demand)
     n_prices = len(prices)
 
@@ -73,30 +81,32 @@ def find_optimal_price(prices, demand, c) -> OptimizeResult:
 SamplingStrategy = Callable[[Belief], float]
 
 
-def thompson(prior: Prior) -> float:
-    return prior.sample()  # type: ignore
+class SamplingStrategies:
+    @staticmethod
+    def thompson(prior: Prior) -> int:
+        return int(prior.sample())
 
-
-def greedy(prior: Prior) -> float:
-    return prior.expected_value  # type: ignore
+    @staticmethod
+    def greedy(prior: Prior) -> int:
+        return int(prior.expected_value)
 
 
 @functools.singledispatch
-def sample_demand(param: Prior, strategy: SamplingStrategy) -> float:
+def sample_demand(param: Prior, strategy: SamplingStrategy) -> int:
     raise NotImplementedError
 
 
 @sample_demand.register(BetaPrior)
-def _(belief, strategy):
+def _(belief, strategy):  # type: ignore
     return strategy(belief)
 
 
-@sample_demand.register(GammaPrior)
+@sample_demand.register(GammaPrior)  # type: ignore
 def _(belief, strategy):
     return np.random.poisson(strategy(belief))
 
 
-def sample_price(probs, prices) -> float:
+def sample_price(probs: Sequence[float], prices: Sequence[float]) -> float:
     """
     The optimization result is a distribution over the possible prices.
     Using such optimal distribution, sample a price.
@@ -119,7 +129,7 @@ class TSFixedFirm:
     def __init__(
         self,
         name: str,
-        beliefs: List[Belief],
+        beliefs: list[Belief],
         strategy: SamplingStrategy,
         inventory: int,
         n_periods: int,
@@ -147,7 +157,7 @@ class TSFixedFirm:
         demand = last_period.demand[self]
         # Update belief
         (belief,) = [belief for belief in self.beliefs if belief.price == price_set]
-        belief.prior.update(demand)
+        belief.prior.update(int(demand))
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'{type(self).__name__}(name={self.name!r})'
