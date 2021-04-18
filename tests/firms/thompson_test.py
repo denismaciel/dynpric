@@ -1,4 +1,4 @@
-from dynpric.firms.thompson import constraint_price_prob_is_positive
+from dynpric.firms.ferreira2018 import constraint_price_prob_is_positive
 
 
 def test_constraint_price_prob_is_positive():
