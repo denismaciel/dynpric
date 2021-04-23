@@ -1,38 +1,5 @@
-import abc
-from typing import NamedTuple
-
 import numpy as np
-
-
-Price = float
-
-
-class Prior(abc.ABC):
-    """
-    Abstract base class for priors
-    """
-
-    @property
-    @abc.abstractmethod
-    def params(self) -> dict[str, float]:
-        ...
-
-    @property
-    @abc.abstractmethod
-    def expected_value(self) -> float:
-        ...
-
-    @abc.abstractmethod
-    def sample(self) -> float:
-        """
-        Samples n values from distribution
-        """
-
-    @abc.abstractmethod
-    def update(self, result: int) -> None:
-        """
-        Updates parameters with new information (result)
-        """
+from dynpric.types import Prior
 
 
 class BetaPrior(Prior):
@@ -93,8 +60,3 @@ class GammaPrior(Prior):
 
     def __repr__(self) -> str:
         return f'{type(self).__name__}(α={self.α}, β={self.β})'
-
-
-class Belief(NamedTuple):
-    price: Price
-    prior: Prior
