@@ -67,7 +67,7 @@ def find_optimal_price(
 
     constraints = [c1, c2, *c3]
 
-    constraints = [constr for constr in constraints if constr is not None]
+    constraints = [constr for constr in constraints if constr]
 
     lhs_ineq = []
     rhs_ineq = []
