@@ -6,10 +6,10 @@ from typing import Sequence
 
 import numpy as np
 from dynpric import History
-from dynpric.priors import Belief
 from dynpric.priors import BetaPrior
 from dynpric.priors import GammaPrior
-from dynpric.priors import Prior
+from dynpric.types import Belief
+from dynpric.types import Prior
 from scipy.optimize import linprog
 from scipy.optimize.optimize import OptimizeResult
 
@@ -44,7 +44,7 @@ def constraint_price_prob_is_positive(n_prices: int) -> Sequence[Inequality]:
 
 
 def find_optimal_price(
-    prices: list[float], demand: list[int], c: float
+    prices: list[float], demand: list[int] | list[float], c: float | None = None
 ) -> OptimizeResult:
     assert len(prices) == len(demand)
     n_prices = len(prices)
@@ -54,7 +54,10 @@ def find_optimal_price(
 
     # --- Constraints ---
     # 1. Demand is smaller equal than available inventory
-    c1 = [demand, c]
+    if c is not None:
+        c1 = [demand, c]
+    else:
+        c1 = []
 
     # Sum of probabilities must be <= 1
     c2 = [tuple(1 for _ in range(n_prices)), 1]
@@ -64,31 +67,32 @@ def find_optimal_price(
 
     constraints = [c1, c2, *c3]
 
+    constraints = [constr for constr in constraints if constr is not None]
+
     lhs_ineq = []
     rhs_ineq = []
 
-    for lhs, rhs in constraints:
-        lhs_ineq.append(lhs)
-        rhs_ineq.append(rhs)
+    for lhs, rhs in constraints:  # type: ignore
+        lhs_ineq.append(lhs)  # type: ignore
+        rhs_ineq.append(rhs)  # type: ignore
 
     opt = linprog(c=objective, A_ub=lhs_ineq, b_ub=rhs_ineq, method='revised simplex')
 
-    print(opt.x, demand)
     return opt
 
 
 # How to select the value of a prior
-SamplingStrategy = Callable[[Belief], float]
+SamplingStrategy = Callable[[Prior], float]
 
 
 class SamplingStrategies:
     @staticmethod
-    def thompson(prior: Prior) -> int:
-        return int(prior.sample())
+    def thompson(prior: Prior) -> int | float:
+        return prior.sample()
 
     @staticmethod
-    def greedy(prior: Prior) -> int:
-        return int(prior.expected_value)
+    def greedy(prior: Prior) -> int | float:
+        return prior.expected_value
 
 
 @functools.singledispatch
@@ -121,7 +125,13 @@ def sample_price(probs: Sequence[float], prices: Sequence[float]) -> float:
 
     # Normalize probs to add up to one
     normalized_probs = np.divide(rounded_probs, np.sum(rounded_probs))
-    price_set = np.random.choice(prices, size=1, p=normalized_probs)
+    try:
+        price_set = np.random.choice(prices, size=1, p=normalized_probs)
+    except ValueError:
+        # When inventory is very low (1 or 2), normalized_probs might contain NaNs.
+        # Default to picking the lowest price.
+        print('NaNs in probs')
+        price_set = prices[0]
     return float(price_set)
 
 
@@ -158,6 +168,115 @@ class TSFixedFirm:
         # Update belief
         (belief,) = [belief for belief in self.beliefs if belief.price == price_set]
         belief.prior.update(int(demand))
+
+    def __repr__(self) -> str:
+        return f'{type(self).__name__}(name={self.name!r})'
+
+
+class TSUpdateFirm:
+    def __init__(
+        self,
+        name: str,
+        beliefs: list[Belief],
+        strategy: SamplingStrategy,
+        inventory: int,
+        n_periods: int,
+    ) -> None:
+        self.name = name
+        self.beliefs = beliefs
+        self.strategy = strategy
+        self.inventory = inventory
+        self.n_periods = n_periods
+        self.current_period = 0
+
+    @property
+    def c(self) -> float:
+        return self.inventory / (self.n_periods - self.current_period)
+
+    def observe_market(self, history: History) -> None:
+        last_period = history[-1]
+        price_set = last_period.prices[self]
+        demand = last_period.demand[self]
+
+        if price_set == np.inf:
+            assert demand <= 0
+            return
+
+        # Update belief
+        (belief,) = [belief for belief in self.beliefs if belief.price == price_set]
+        belief.prior.update(int(demand))
+
+        # Update inventory
+        self.inventory -= demand
+
+        # Udpate current period
+        self.current_period += 1
+
+    @property
+    def price(self) -> float:
+
+        if self.inventory <= 0:
+            return np.inf
+
+        demand = [sample_demand(belief.prior, self.strategy) for belief in self.beliefs]
+        prices = [belief.price for belief in self.beliefs]
+
+        # Given estimated demands for each price level and the inventory
+        # constraint, optimize for best price to set
+        optimization_result = find_optimal_price(prices, demand, self.c)
+        chosen_price = sample_price(optimization_result.x, prices)
+        return float(chosen_price)
+
+    def __repr__(self) -> str:
+        return f'{type(self).__name__}(name={self.name!r})'
+
+
+class TSIngoreInventoryFirm:
+    def __init__(
+        self,
+        name: str,
+        beliefs: list[Belief],
+        strategy: SamplingStrategy,
+        inventory: int,
+        n_periods: int,
+    ) -> None:
+        self.name = name
+        self.beliefs = beliefs
+        self.strategy = strategy
+        self.inventory = inventory
+        self.n_periods = n_periods
+        self.current_period = 0
+
+    @property
+    def price(self) -> float:
+
+        if self.inventory <= 0:
+            return np.inf
+
+        demand = [sample_demand(belief.prior, self.strategy) for belief in self.beliefs]
+        prices = [belief.price for belief in self.beliefs]
+        optimization_result = find_optimal_price(prices, demand)
+        chosen_price = sample_price(optimization_result.x, prices)
+        return float(chosen_price)
+
+    def observe_market(self, history: History) -> None:
+        last_period = history[-1]
+        price_set = last_period.prices[self]
+        demand = last_period.demand[self]
+
+        if price_set == np.inf:
+            assert demand <= 0
+            return
+
+        # Update belief
+        (belief,) = [belief for belief in self.beliefs if belief.price == price_set]
+        belief.prior.update(int(demand))
+
+        # Update inventory
+        self.inventory -= demand
+
+        # Udpate current period
+        self.current_period += 1
 
     def __repr__(self) -> str:
         return f'{type(self).__name__}(name={self.name!r})'

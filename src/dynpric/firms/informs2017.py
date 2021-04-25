@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import random
 
 import numpy as np
@@ -7,7 +9,7 @@ from dynpric.types import Price
 
 
 def train_linear_regression(
-    prices: list[float], quantities: list[float]
+    prices: list[float], quantities: list[float] | list[int]
 ) -> sklearn.linear_model.LinearRegression:
     model = sklearn.linear_model.LinearRegression()
     model.fit(np.array(prices).reshape(-1, 1), quantities)
