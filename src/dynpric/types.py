@@ -80,7 +80,7 @@ class Log(TypedDict):
 
 
 class Demand(Protocol):
-    def allocate(self, prices_set: PricesSet) -> dict[Firm, int]:
+    def allocate(self, prices_set: PricesSet) -> DemandRealized:
         ...
 
 
